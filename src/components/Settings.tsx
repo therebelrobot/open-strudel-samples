@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { setGitHubToken, clearGitHubToken, hasGitHubToken } from '../utils/github-api';
 import { useToast } from '../hooks/useToast';
 import { useSoundStore } from '../store/soundStore';
@@ -8,19 +8,51 @@ interface SettingsProps {
 }
 
 export function Settings({ onClose }: SettingsProps) {
+  // Local state
   const [token, setToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showClearBlocklistConfirm, setShowClearBlocklistConfirm] = useState(false);
-  const hasToken = hasGitHubToken();
+  const [hasTokenState, setHasTokenState] = useState(false);
+  const [blockedReposList, setBlockedReposList] = useState<string[]>([]);
+  
+  // Refs to store functions without causing re-renders
+  const storeRef = useRef({
+    unblockRepository: (key: string) => {},
+    clearBlocklist: () => {}
+  });
+  
   const toast = useToast();
   
-  const blockedRepos = useSoundStore((state) => state.getBlockedRepos());
-  const unblockRepository = useSoundStore((state) => state.unblockRepository);
-  const clearBlocklist = useSoundStore((state) => state.clearBlocklist);
+  // Initialize state on mount only
+  useEffect(() => {
+    // Check if token exists
+    setHasTokenState(hasGitHubToken());
+    
+    // Get store functions
+    const store = useSoundStore.getState();
+    storeRef.current = {
+      unblockRepository: store.unblockRepository,
+      clearBlocklist: store.clearBlocklist
+    };
+    
+    // Get blocked repos
+    setBlockedReposList(store.getBlockedRepos());
+    
+    // Subscribe to blockedRepos changes
+    const unsubscribe = useSoundStore.subscribe(
+      (state) => {
+        // When blockedRepos changes, update our local state
+        setBlockedReposList(state.getBlockedRepos());
+      }
+    );
+    
+    return unsubscribe;
+  }, []);
 
   const handleSave = () => {
     setGitHubToken(token);
+    setHasTokenState(true);
     toast.success('GitHub token saved! You can now search for repositories.');
     setToken('');
     onClose();
@@ -28,18 +60,19 @@ export function Settings({ onClose }: SettingsProps) {
 
   const handleClear = () => {
     clearGitHubToken();
+    setHasTokenState(false);
     toast.info('GitHub token removed.');
     setShowClearConfirm(false);
     onClose();
   };
 
   const handleUnblock = (repoKey: string) => {
-    unblockRepository(repoKey);
+    storeRef.current.unblockRepository(repoKey);
     toast.info('Repository unblocked');
   };
 
   const handleClearBlocklist = () => {
-    clearBlocklist();
+    storeRef.current.clearBlocklist();
     toast.success('Blocklist cleared');
     setShowClearBlocklistConfirm(false);
   };
@@ -66,7 +99,7 @@ export function Settings({ onClose }: SettingsProps) {
               GitHub's Code Search API requires authentication. You'll need to create a Personal Access Token (PAT) to search for repositories.
             </p>
             <p className="text-sm text-blue-700">
-              Status: {hasToken ? '✅ Token configured' : '❌ No token set'}
+              Status: {hasTokenState ? '✅ Token configured' : '❌ No token set'}
             </p>
           </div>
 
@@ -113,20 +146,20 @@ export function Settings({ onClose }: SettingsProps) {
           {/* Blocklist Section */}
           <div className="border-t pt-4">
             <h3 className="font-semibold text-gray-800 mb-3">
-              🚫 Blocked Repositories ({blockedRepos.length})
+              🚫 Blocked Repositories ({blockedReposList.length})
             </h3>
             <p className="text-sm text-gray-600 mb-3">
               Blocked repositories are hidden from search results. These are typically non-Strudel repositories.
             </p>
             
-            {blockedRepos.length === 0 ? (
+            {blockedReposList.length === 0 ? (
               <div className="bg-gray-50 border border-gray-200 rounded p-3 text-sm text-gray-600 text-center">
                 No blocked repositories
               </div>
             ) : (
               <>
                 <div className="bg-gray-50 border border-gray-200 rounded max-h-40 overflow-y-auto">
-                  {blockedRepos.map((repoKey) => (
+                  {blockedReposList.map((repoKey: string) => (
                     <div
                       key={repoKey}
                       className="flex items-center justify-between p-2 border-b border-gray-200 last:border-b-0 hover:bg-gray-100"
@@ -180,7 +213,7 @@ export function Settings({ onClose }: SettingsProps) {
             >
               💾 Save Token
             </button>
-            {hasToken && !showClearConfirm && (
+            {hasTokenState && !showClearConfirm && (
               <button
                 onClick={() => setShowClearConfirm(true)}
                 className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
