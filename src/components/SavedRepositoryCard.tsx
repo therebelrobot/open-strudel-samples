@@ -43,7 +43,10 @@ export function SavedRepositoryCard({ repository, onPlay, onStop }: SavedReposit
     return groupSoundsByCategory(repository.sounds);
   }, [repository.sounds]);
 
-  const repoUrl = `https://github.com/${repository.owner}/${repository.repo}`;
+  // Generate repository URL (handle custom URLs differently)
+  const repoUrl = repository.isCustomUrl
+    ? repository.strudel_json_url
+    : `https://github.com/${repository.owner}/${repository.repo}`;
   
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
@@ -68,7 +71,11 @@ export function SavedRepositoryCard({ repository, onPlay, onStop }: SavedReposit
           </div>
           
           <div className="bg-purple-50 px-2 py-1 rounded text-xs">
-            <span className="text-purple-700 font-mono">samples('github:{repository.owner}/{repository.repo}')</span>
+            <span className="text-purple-700 font-mono">
+              {repository.isCustomUrl
+                ? `samples('${repository.raw_json_url}')`
+                : `samples('github:${repository.owner}/${repository.repo}')`}
+            </span>
           </div>
         </div>
         

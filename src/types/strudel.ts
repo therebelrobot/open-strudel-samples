@@ -23,6 +23,13 @@ export interface LoadedRepository {
   raw_json_url: string;
   sounds: Sound[];
   loaded_at: string;
+  isCustomUrl?: boolean;
+}
+
+export interface CustomUrlRepository {
+  url: string;
+  name: string;
+  added_at: string;
 }
 
 export interface ExportData {
@@ -30,4 +37,5 @@ export interface ExportData {
   exported_at: string;
   repositories: LoadedRepository[];
   blocklist?: string[];
+  customUrls?: CustomUrlRepository[];
 }

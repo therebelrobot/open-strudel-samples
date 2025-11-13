@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import type { FormEvent } from 'react';
 import { setGitHubToken, clearGitHubToken, hasGitHubToken } from '../utils/github-api';
 import { useToast } from '../hooks/useToast';
 import { useSoundStore } from '../store/soundStore';
+import { useStrudelJson } from '../hooks/useStrudelJson';
+import type { CustomUrlRepository } from '../types/strudel';
 
 interface SettingsProps {
   onClose: () => void;
@@ -15,16 +18,22 @@ export function Settings({ onClose }: SettingsProps) {
   const [showClearBlocklistConfirm, setShowClearBlocklistConfirm] = useState(false);
   const [hasTokenState, setHasTokenState] = useState(false);
   const [blockedReposList, setBlockedReposList] = useState<string[]>([]);
+  const [customUrlsList, setCustomUrlsList] = useState<CustomUrlRepository[]>([]);
+  const [newCustomUrl, setNewCustomUrl] = useState('');
+  const [newCustomUrlName, setNewCustomUrlName] = useState('');
+  const [isLoadingCustomUrl, setIsLoadingCustomUrl] = useState(false);
+  const [customUrlError, setCustomUrlError] = useState<string | null>(null);
   
   // Refs to store functions without causing re-renders
   const storeRef = useRef({
-    unblockRepository: (key: string) => {
-      console.info('Placeholder unblockRepository called with key:', key);
-    },
-    clearBlocklist: () => {}
+    unblockRepository: (_key: string) => {},
+    clearBlocklist: () => {},
+    removeCustomUrl: (_url: string) => {},
+    getCustomUrls: () => [] as CustomUrlRepository[]
   });
   
   const toast = useToast();
+  const { loadCustomUrlRepository } = useStrudelJson();
   
   // Initialize state on mount only
   useEffect(() => {
@@ -35,17 +44,23 @@ export function Settings({ onClose }: SettingsProps) {
     const store = useSoundStore.getState();
     storeRef.current = {
       unblockRepository: store.unblockRepository,
-      clearBlocklist: store.clearBlocklist
+      clearBlocklist: store.clearBlocklist,
+      removeCustomUrl: store.removeCustomUrl,
+      getCustomUrls: store.getCustomUrls
     };
     
     // Get blocked repos
     setBlockedReposList(store.getBlockedRepos());
     
+    // Get custom URLs
+    setCustomUrlsList(store.getCustomUrls());
+    
     // Subscribe to blockedRepos changes
     const unsubscribe = useSoundStore.subscribe(
       (state) => {
-        // When blockedRepos changes, update our local state
+        // When blockedRepos or customUrls change, update our local state
         setBlockedReposList(state.getBlockedRepos());
+        setCustomUrlsList(state.getCustomUrls());
       }
     );
     
@@ -77,6 +92,46 @@ export function Settings({ onClose }: SettingsProps) {
     storeRef.current.clearBlocklist();
     toast.success('Blocklist cleared');
     setShowClearBlocklistConfirm(false);
+  };
+  
+  const handleAddCustomUrl = async (e: FormEvent) => {
+    e.preventDefault();
+    
+    if (!newCustomUrl.trim() || !newCustomUrlName.trim()) {
+      toast.error('Please enter both URL and name');
+      return;
+    }
+    
+    // Validate URL format
+    try {
+      new URL(newCustomUrl);
+    } catch (_err) {
+      toast.error('Please enter a valid URL');
+      return;
+    }
+    
+    setIsLoadingCustomUrl(true);
+    setCustomUrlError(null);
+    
+    try {
+      // Load the repository (it will be automatically saved)
+      await loadCustomUrlRepository(newCustomUrl, newCustomUrlName);
+      
+      toast.success(`Added custom URL: ${newCustomUrlName}`);
+      setNewCustomUrl('');
+      setNewCustomUrlName('');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load custom URL';
+      setCustomUrlError(message);
+      toast.error(message);
+    } finally {
+      setIsLoadingCustomUrl(false);
+    }
+  };
+  
+  const handleRemoveCustomUrl = (url: string) => {
+    storeRef.current.removeCustomUrl(url);
+    toast.info('Custom URL removed');
   };
 
   return (
@@ -204,6 +259,92 @@ export function Settings({ onClose }: SettingsProps) {
                   )}
                 </div>
               </>
+            )}
+          </div>
+          
+          {/* Custom URLs Section */}
+          <div className="border-t pt-4">
+            <h3 className="font-semibold text-gray-800 mb-3">
+              🔗 Custom URLs ({customUrlsList.length})
+            </h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Add custom strudel.json URLs from any source, including localhost for development.
+            </p>
+            
+            <form onSubmit={handleAddCustomUrl} className="mb-4 space-y-3">
+              <div>
+                <label htmlFor="customUrl" className="block text-sm font-medium text-gray-700 mb-1">
+                  Strudel JSON URL
+                </label>
+                <input
+                  id="customUrl"
+                  type="text"
+                  value={newCustomUrl}
+                  onChange={(e) => setNewCustomUrl(e.target.value)}
+                  placeholder="https://example.com/strudel.json"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  disabled={isLoadingCustomUrl}
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="customUrlName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Display Name
+                </label>
+                <input
+                  id="customUrlName"
+                  type="text"
+                  value={newCustomUrlName}
+                  onChange={(e) => setNewCustomUrlName(e.target.value)}
+                  placeholder="My Custom Strudel"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  disabled={isLoadingCustomUrl}
+                />
+              </div>
+              
+              {customUrlError && (
+                <div className="text-sm text-red-600">
+                  Error: {customUrlError}
+                </div>
+              )}
+              
+              <button
+                type="submit"
+                disabled={isLoadingCustomUrl || !newCustomUrl.trim() || !newCustomUrlName.trim()}
+                className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {isLoadingCustomUrl ? 'Loading...' : '➕ Add Custom URL'}
+              </button>
+            </form>
+            
+            {customUrlsList.length === 0 ? (
+              <div className="bg-gray-50 border border-gray-200 rounded p-3 text-sm text-gray-600 text-center">
+                No custom URLs added
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded max-h-40 overflow-y-auto">
+                {customUrlsList.map((item) => (
+                  <div
+                    key={item.url}
+                    className="flex items-center justify-between p-2 border-b border-gray-200 last:border-b-0 hover:bg-gray-100"
+                  >
+                    <div className="flex-1 overflow-hidden">
+                      <div className="text-sm font-medium text-gray-800 truncate">
+                        {item.name}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate font-mono">
+                        {item.url}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveCustomUrl(item.url)}
+                      className="ml-2 px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex-shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 

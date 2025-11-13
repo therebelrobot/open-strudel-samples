@@ -243,3 +243,29 @@ export async function checkUrlAccessible(url: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Fetch content from a custom URL
+ * @param url - The URL to fetch content from
+ */
+export async function fetchCustomUrlContent(url: string): Promise<string> {
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new GitHubAPIError(
+        `Failed to fetch content from custom URL: ${response.statusText}`,
+        response.status
+      );
+    }
+
+    return await response.text();
+  } catch (error) {
+    if (error instanceof GitHubAPIError) {
+      throw error;
+    }
+    throw new GitHubAPIError(
+      error instanceof Error ? error.message : 'Failed to fetch content from custom URL'
+    );
+  }
+}

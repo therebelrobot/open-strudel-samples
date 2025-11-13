@@ -11,7 +11,9 @@ export function ExportImport() {
   const savedRepositories = useSoundStore((state) => state.savedRepositories);
   const importRepositories = useSoundStore((state) => state.importRepositories);
   const importBlocklist = useSoundStore((state) => state.importBlocklist);
+  const importCustomUrls = useSoundStore((state) => state.importCustomUrls);
   const getBlockedRepos = useSoundStore((state) => state.getBlockedRepos);
+  const getCustomUrls = useSoundStore((state) => state.getCustomUrls);
   const clearPreviews = useSoundStore((state) => state.clearPreviews);
   const previewRepositories = useSoundStore((state) => state.previewRepositories);
   const toast = useToast();
@@ -23,8 +25,17 @@ export function ExportImport() {
     }
     
     const blocklist = getBlockedRepos();
-    downloadExport(savedRepositories, blocklist);
-    toast.success(`Exported ${savedRepositories.length} saved repositories and ${blocklist.length} blocked repositories!`);
+    const customUrls = getCustomUrls();
+    downloadExport(savedRepositories, blocklist, customUrls);
+    
+    let successMessage = `Exported ${savedRepositories.length} saved repositories`;
+    if (blocklist.length > 0) {
+      successMessage += `, ${blocklist.length} blocked repositories`;
+    }
+    if (customUrls.length > 0) {
+      successMessage += `, ${customUrls.length} custom URLs`;
+    }
+    toast.success(successMessage + '!');
   };
 
   const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -56,10 +67,19 @@ export function ExportImport() {
         importBlocklist(data.blocklist);
       }
       
-      const blocklistMsg = data.blocklist && data.blocklist.length > 0
-        ? ` and ${data.blocklist.length} blocked repositories`
-        : '';
-      toast.success(`Successfully imported ${data.repositories.length} repositories${blocklistMsg}!`);
+      // Import custom URLs if present
+      if (data.customUrls && data.customUrls.length > 0) {
+        importCustomUrls(data.customUrls);
+      }
+      
+      let successMessage = `Successfully imported ${data.repositories.length} repositories`;
+      if (data.blocklist && data.blocklist.length > 0) {
+        successMessage += `, ${data.blocklist.length} blocked repositories`;
+      }
+      if (data.customUrls && data.customUrls.length > 0) {
+        successMessage += `, ${data.customUrls.length} custom URLs`;
+      }
+      toast.success(successMessage + '!');
       setPendingImport(null);
     } catch (error) {
       toast.error(`Failed to import: ${error instanceof Error ? error.message : 'Unknown error'}`);

@@ -1,16 +1,21 @@
-import type { ExportData, LoadedRepository } from '../types/strudel';
+import type { ExportData, LoadedRepository, CustomUrlRepository } from '../types/strudel';
 
-const EXPORT_VERSION = '2.0';
+const EXPORT_VERSION = '3.0'; // Increment version for custom URLs support
 
 /**
- * Export loaded repositories and blocklist to JSON
+ * Export loaded repositories, blocklist, and custom URLs to JSON
  */
-export function exportToJson(repositories: LoadedRepository[], blocklist: string[] = []): string {
+export function exportToJson(
+  repositories: LoadedRepository[],
+  blocklist: string[] = [],
+  customUrls: CustomUrlRepository[] = []
+): string {
   const data: ExportData = {
     version: EXPORT_VERSION,
     exported_at: new Date().toISOString(),
     repositories,
     blocklist,
+    customUrls,
   };
 
   return JSON.stringify(data, null, 2);
@@ -19,8 +24,12 @@ export function exportToJson(repositories: LoadedRepository[], blocklist: string
 /**
  * Download export data as JSON file
  */
-export function downloadExport(repositories: LoadedRepository[], blocklist: string[] = []): void {
-  const json = exportToJson(repositories, blocklist);
+export function downloadExport(
+  repositories: LoadedRepository[],
+  blocklist: string[] = [],
+  customUrls: CustomUrlRepository[] = []
+): void {
+  const json = exportToJson(repositories, blocklist, customUrls);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
@@ -44,9 +53,14 @@ export function parseImportData(json: string): ExportData {
       throw new Error('Invalid export data format');
     }
 
-    // Ensure blocklist is an array (backwards compatibility with v1.0)
+    // Ensure blocklist is an array (backwards compatibility with v1.0 and v2.0)
     if (!data.blocklist) {
       data.blocklist = [];
+    }
+
+    // Ensure customUrls is an array (backwards compatibility with v1.0 and v2.0)
+    if (!data.customUrls) {
+      data.customUrls = [];
     }
 
     return data as ExportData;

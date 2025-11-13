@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { LoadedRepository, Sound } from '../types/strudel';
+import type { LoadedRepository, Sound, CustomUrlRepository } from '../types/strudel';
 
 interface SoundStore {
   // State
@@ -9,6 +9,7 @@ interface SoundStore {
   currentlyPlaying: string | null;
   collapsedRepos: Set<string>;
   blockedRepos: Set<string>; // Blocked/non-Strudel repos (persisted)
+  customUrls: CustomUrlRepository[]; // Custom URL repositories (persisted)
 
   // Actions
   addPreview: (repository: LoadedRepository) => void;
@@ -19,10 +20,14 @@ interface SoundStore {
   setCurrentlyPlaying: (soundId: string | null) => void;
   importRepositories: (repositories: LoadedRepository[]) => void;
   importBlocklist: (blocklist: string[]) => void;
+  importCustomUrls: (customUrls: CustomUrlRepository[]) => void;
   toggleCollapsed: (repoKey: string) => void;
   blockRepository: (repoKey: string) => void;
   unblockRepository: (repoKey: string) => void;
   clearBlocklist: () => void;
+  addCustomUrl: (url: string, name: string) => void;
+  removeCustomUrl: (url: string) => void;
+  getCustomUrls: () => CustomUrlRepository[];
 
   // Getters
   getAllPreviewSounds: () => Sound[];
@@ -43,6 +48,7 @@ export const useSoundStore = create<SoundStore>()(
       currentlyPlaying: null,
       collapsedRepos: new Set(),
       blockedRepos: new Set(),
+      customUrls: [],
 
       addPreview: (repository) => {
         set((state) => {
@@ -127,6 +133,10 @@ export const useSoundStore = create<SoundStore>()(
         set({ blockedRepos: new Set(blocklist) });
       },
 
+      importCustomUrls: (customUrls) => {
+        set({ customUrls });
+      },
+
       toggleCollapsed: (repoKey) => {
         set((state) => {
           const newCollapsed = new Set(state.collapsedRepos);
@@ -168,6 +178,46 @@ export const useSoundStore = create<SoundStore>()(
         set({ blockedRepos: new Set() });
       },
 
+      addCustomUrl: (url, name) => {
+        set((state) => {
+          // Check if URL already exists
+          const exists = state.customUrls.some(item => item.url === url);
+
+          if (exists) {
+            // Update existing URL name
+            return {
+              customUrls: state.customUrls.map(item =>
+                item.url === url
+                  ? { ...item, name, added_at: new Date().toISOString() }
+                  : item
+              )
+            };
+          }
+
+          // Add new custom URL
+          return {
+            customUrls: [
+              ...state.customUrls,
+              {
+                url,
+                name,
+                added_at: new Date().toISOString()
+              }
+            ]
+          };
+        });
+      },
+
+      removeCustomUrl: (url) => {
+        set((state) => ({
+          customUrls: state.customUrls.filter(item => item.url !== url)
+        }));
+      },
+
+      getCustomUrls: () => {
+        return get().customUrls;
+      },
+
       getAllPreviewSounds: () => {
         const state = get();
         return state.previewRepositories.flatMap((repo) => repo.sounds);
@@ -179,6 +229,11 @@ export const useSoundStore = create<SoundStore>()(
       },
 
       getRepositoryKey: (repo) => {
+        // For custom URLs, use the URL as the key to ensure uniqueness
+        if (repo.isCustomUrl) {
+          return `custom:${repo.strudel_json_url}`;
+        }
+        // For GitHub repositories, use the standard format
         return `${repo.owner}/${repo.repo}/${repo.path}`;
       },
 
@@ -212,10 +267,11 @@ export const useSoundStore = create<SoundStore>()(
       name: 'strudel-sound-storage',
       version: 3, // Increment version for blocklist
       partialize: (state) => ({
-        // Only persist saved repositories and blocklist, not previews
+        // Only persist saved repositories, blocklist, and custom URLs, not previews
         savedRepositories: state.savedRepositories,
         collapsedRepos: state.collapsedRepos,
         blockedRepos: state.blockedRepos,
+        customUrls: state.customUrls,
       }),
       storage: {
         getItem: (name) => {
