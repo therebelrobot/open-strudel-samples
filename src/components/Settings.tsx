@@ -18,7 +18,9 @@ export function Settings({ onClose }: SettingsProps) {
   
   // Refs to store functions without causing re-renders
   const storeRef = useRef({
-    unblockRepository: (key: string) => {},
+    unblockRepository: (key: string) => {
+      console.info('Placeholder unblockRepository called with key:', key);
+    },
     clearBlocklist: () => {}
   });
   
