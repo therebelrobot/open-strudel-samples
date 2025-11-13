@@ -26,7 +26,6 @@ export function SoundGrid({ sounds, onPlay, onStop, isPreview }: SoundGridProps)
   const previewRepositories = useSoundStore((state) => state.previewRepositories);
   const savedRepositories = useSoundStore((state) => state.savedRepositories);
   const getRepositoryKey = useSoundStore((state) => state.getRepositoryKey);
-  const getPreviewRepository = useSoundStore((state) => state.getPreviewRepository);
   
   const loadedRepos = isPreview ? previewRepositories : savedRepositories;
 
